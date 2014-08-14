@@ -88,7 +88,6 @@ func (self *ZipServer) findFile(name string) *zip.File {
 }
 
 func (self *ZipServer) ServeFile(w http.ResponseWriter, r *http.Request, name string) {
-	println("get:", name)
 	wh := w.Header() // HTTP-заголовки ответа для быстрого доступа
 	if r.Method != "GET" && r.Method != "HEAD" {
 		wh.Set("Allow", "GET")
