@@ -34,6 +34,26 @@ func OpenZipServer(filename string) (*ZipServer, error) {
 	}, nil
 }
 
+func (self *ZipServer) CheckMimeType(mimetype string) bool {
+	if len(self.zipFile.File) == 0 {
+		return false
+	}
+	firstFile := self.zipFile.File[0]
+	if firstFile.Name != "mimetype" {
+		return false
+	}
+	file, err := firstFile.Open()
+	defer file.Close()
+	if err != nil {
+		return false
+	}
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return false
+	}
+	return string(data) == mimetype
+}
+
 func (self *ZipServer) GetFile(name string) (io.ReadCloser, error) {
 	if file := self.findFile(name); file != nil {
 		return file.Open()
