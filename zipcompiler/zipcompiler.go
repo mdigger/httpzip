@@ -22,7 +22,7 @@ func main() {
 		jsCompress  bool
 	)
 	flag.StringVar(&outFile, "out", "archive.zft", "output file name")
-	flag.StringVar(&mimeType, "mime", "application/x-archive+zip", "archive mimetype")
+	flag.StringVar(&mimeType, "mime", "application/x-webarchive+zip", "archive mimetype")
 	flag.BoolVar(&cssCompress, "csscompress", true, "compress css files")
 	flag.BoolVar(&jsCompress, "jscompress", true, "compress javascript files")
 	flag.Parse()
