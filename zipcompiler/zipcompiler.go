@@ -3,7 +3,8 @@ package main
 import (
 	"archive/zip"
 	"flag"
-	"github.com/alexzorin/csscompress_go"
+	"github.com/dchest/cssmin"
+	"github.com/dchest/htmlmin"
 	"github.com/dchest/jsmin"
 	"io"
 	"io/ioutil"
@@ -16,15 +17,17 @@ func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
 	var (
-		outFile     string
-		mimeType    string
-		cssCompress bool
-		jsCompress  bool
+		outFile      string
+		mimeType     string
+		cssCompress  bool
+		jsCompress   bool
+		htmlCompress bool
 	)
 	flag.StringVar(&outFile, "out", "archive.zft", "output file name")
 	flag.StringVar(&mimeType, "mime", "application/x-webarchive+zip", "archive mimetype")
-	flag.BoolVar(&cssCompress, "csscompress", true, "compress css files")
-	flag.BoolVar(&jsCompress, "jscompress", true, "compress javascript files")
+	flag.BoolVar(&cssCompress, "mincss", true, "minifying css files")
+	flag.BoolVar(&jsCompress, "minjs", true, "minifying javascript files")
+	flag.BoolVar(&htmlCompress, "minhtml", true, "minifying html files")
 	flag.Parse()
 
 	archive, err := os.Create(outFile)
@@ -36,6 +39,7 @@ func main() {
 			log.Fatalln("Error closing archive file:", err)
 		}
 	}()
+	log.Print("compress to", outFile)
 
 	zipWriter := zip.NewWriter(archive)
 	defer func() {
@@ -68,15 +72,16 @@ func main() {
 			log.Fatalln("Error creating file in archive:", err)
 		}
 
-		if cssCompress && filepath.Ext(arg) == ".css" {
-			log.Printf("Compressing css %q...", arg)
-			css, err := csscompress.New(file, stream)
+		switch ext := filepath.Ext(arg); {
+		case cssCompress && ext == ".css":
+			log.Print("*", arg)
+			data, err := ioutil.ReadAll(file)
 			if err != nil {
-				log.Fatalln("Error creating css compressor:", err)
+				log.Fatalln("Error reading css file:", err)
 			}
-			css.Minify()
-		} else if jsCompress && filepath.Ext(arg) == ".js" {
-			log.Printf("Compressing javascript %q...", arg)
+			stream.Write(cssmin.Minify(data))
+		case jsCompress && ext == ".js":
+			log.Print("*", arg)
 			data, err := ioutil.ReadAll(file)
 			if err != nil {
 				log.Fatalln("Error reading javascript file:", err)
@@ -86,12 +91,23 @@ func main() {
 				log.Fatalln("Error minifing javascript file:", err)
 			}
 			stream.Write(data)
-		} else {
+		case htmlCompress && (ext == ".html" || ext == ".htm"):
+			log.Print("*", arg)
+			data, err := ioutil.ReadAll(file)
+			if err != nil {
+				log.Fatalln("Error reading html file:", err)
+			}
+			data, err = htmlmin.Minify(data, htmlmin.DefaultOptions)
+			if err != nil {
+				log.Fatalln("Error minifing html file:", err)
+			}
+			stream.Write(data)
+		default:
+			log.Print("+", arg)
 			_, err = io.Copy(stream, file)
 			if err != nil {
 				log.Fatalln("Error copying file to archive:", err)
 			}
 		}
-		log.Println("Added", arg)
 	}
 }
