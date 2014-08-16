@@ -1,3 +1,6 @@
+// Основная идея: возможность быстро подключить zip-файл в качестве отдачи статических файлов
+// через стандартный Go HTTP-сервер. Специально для этого реализована поддержка функции,
+// аналогичной http.ServeFile.
 package zipserver
 
 import (
@@ -12,13 +15,17 @@ import (
 	"time"
 )
 
+// Ошибка, что файл с таким именем в архиве не найден.
 var ErrNotFound = errors.New("file not found")
 
+// ZipServer описывает открытый zip-архив, с поддержкой раздачи содержимого через HTTP-сервер.
 type ZipServer struct {
 	modtime time.Time
 	zipFile *zip.ReadCloser
 }
 
+// OpenZipServer открывает файл с zip-архивом и возвращает ссылку на ZipServer. Если файл
+// с указанным именем не найден или в процессе открытия произошла ошибка, то она возвращается.
 func OpenZipServer(filename string) (*ZipServer, error) {
 	fi, err := os.Stat(filename)
 	if err != nil {
@@ -34,6 +41,9 @@ func OpenZipServer(filename string) (*ZipServer, error) {
 	}, nil
 }
 
+// CheckMimeType проверяет, что самый первый файл в архиве имеет имя mimetype и его содержимое
+// полностью соответствует строке, переданной в качестве параметра. Данная проверка используется,
+// например, для открытия EPUB-файлов.
 func (self *ZipServer) CheckMimeType(mimetype string) bool {
 	if len(self.zipFile.File) == 0 {
 		return false
@@ -54,6 +64,8 @@ func (self *ZipServer) CheckMimeType(mimetype string) bool {
 	return string(data) == mimetype
 }
 
+// GetFile возвращает io.ReadCloser интерфейс для чтения содержимого файла из архива с указанным
+// именем. Если файл с таким именем в архиве не существует, то возвращается ошибка.
 func (self *ZipServer) GetFile(name string) (io.ReadCloser, error) {
 	if file := self.findFile(name); file != nil {
 		return file.Open()
@@ -61,6 +73,8 @@ func (self *ZipServer) GetFile(name string) (io.ReadCloser, error) {
 	return nil, ErrNotFound
 }
 
+// GetData возвращает содержимое файла с указанным именем. Если такого файла в архиве нет, то
+// возвращается ошибка.
 func (self *ZipServer) GetData(name string) ([]byte, error) {
 	r, err := self.GetFile(name)
 	if err != nil {
@@ -70,14 +84,19 @@ func (self *ZipServer) GetData(name string) ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
+// Close закрывает открытый файл с архивом и завершает работу.
 func (self *ZipServer) Close() error {
 	return self.zipFile.Close()
 }
 
+// ModTime возвращает время модификации файла с архивом. Используется при отдаче файлов из архива
+// по HTTP в качестве времени модификации, чтобы осуществить корректное кеширование.
 func (self *ZipServer) ModTime() time.Time {
 	return self.modtime
 }
 
+// findFile возвращает ссылку на файл в архиве с указанным именем. Если такого файла не найдено,
+// то возвращается nil.
 func (self *ZipServer) findFile(name string) *zip.File {
 	for _, file := range self.zipFile.File {
 		if file.Name == name {
@@ -87,6 +106,18 @@ func (self *ZipServer) findFile(name string) *zip.File {
 	return nil
 }
 
+// ServeFile позволяет отдать файл с указанным именем в HTTP-поток. В общем, ради этой функции
+// все и писалось. При отдаче заголовок Last-Modified устанавливается в значение времени
+// последней модификации файла с архивом. Кроме этого, корректно возвращается Content-Type
+// в зависимости от расширения файла.
+//
+// Функция обрабатывает только GET или HEAD запросы. В противном случае будет возвращена ошибка
+// http.StatusMethodNotAllowed с корректно установленными HTTP-заголовками.
+//
+// Если файла с указанным именем в архиве не найдено, то будет возвращена ошибка http.StatusNotFound.
+//
+// При обработке запроса обрабатывается заголовок If-Modified-Since и, если файл не изменился,
+// возвращается http.StatusNotModified.
 func (self *ZipServer) ServeFile(w http.ResponseWriter, r *http.Request, name string) {
 	wh := w.Header() // HTTP-заголовки ответа для быстрого доступа
 	if r.Method != "GET" && r.Method != "HEAD" {
@@ -109,6 +140,7 @@ func (self *ZipServer) ServeFile(w http.ResponseWriter, r *http.Request, name st
 		}
 	}
 	// Всегда устанавливаем заголовок со временем модификации
+	// TODO: устанавливать время из файла (???)
 	wh.Set("Last-Modified", self.modtime.UTC().Format(http.TimeFormat))
 	// checkETag
 	// etag := r.Header.Get("Etag")
