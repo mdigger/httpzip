@@ -1,95 +1,46 @@
 # httpzip
 
-    import "github.com/mdigger/httpzip"
-
-Основная идея: возможность быстро подключить zip-файл в качестве отдачи
-статических файлов через стандартный Go HTTP-сервер. Специально для этого
-реализована поддержка функции, аналогичной http.ServeFile.
-
-## Использование
+Основная идея: возможность быстро подключить zip-файл в качестве каталога со статическими файлами и отдавать их через стандартный Go HTTP-сервер. Специально для этого и реализована поддержка функции, аналогичной http.ServeFile.
 
 ```go
-var ErrNotFound = errors.New("file not found")
-```
-Ошибка, что файл с таким именем в архиве не найден.
-
-#### type ZipServer
-
-```go
-type ZipServer struct {
+// Открываем файл с архивом
+zipServer, err := httpzip.OpenZipServer("static.zip")
+if err != nil {
+    log.Fatal(err)
 }
+defer zipServer.Close() // Атоматически закрываем по окончании
+
+// Читаем из него, например, шаблон и разбираем его, если это нужно
+data, err := zipServer.GetData("templates/default.tmpl")
+if err != nil {
+    log.Fatal(err)
+}
+tmpl, err = template.New("").Parse(string(data))
+if err != nil {
+    log.Fatal(err)
+}
+
+// Инициализируем обработчик HTTP-запросов
+mux := http.NewServeMux()
+const staticUrl = "/static/"
+mux.HandleFunc(staticUrl, func(w http.ResponseWriter, r *http.Request) {
+    name := strings.TrimPrefix(r.URL.Path, staticUrl) // Убираем из запроса префикс пути
+    zipServer.ServeFile(w, r, name) // Отдаем файл из архива
+})
+
+// Ну, дальше вы все сами знаете как запустить этот HTTP-сервер...
 ```
 
-ZipServer описывает открытый zip-архив, с поддержкой раздачи содержимого через
-HTTP-сервер.
+`ServeFile` позволяет отдать файл с указанным именем в HTTP-поток: в общем, ради этой функции все и писалось. При отдаче заголовок `Last-Modified` устанавливается в значение времени последней модификации файла с архивом. Кроме этого, корректно возвращается Content-Type в зависимости от расширения файла.
 
-#### func  OpenZipServer
-
-```go
-func OpenZipServer(filename string) (*ZipServer, error)
-```
-OpenZipServer открывает файл с zip-архивом и возвращает ссылку на ZipServer.
-Если файл с указанным именем не найден или в процессе открытия произошла ошибка,
-то она возвращается.
-
-#### func (*ZipServer) CheckMimeType
-
-```go
-func (self *ZipServer) CheckMimeType(mimetype string) bool
-```
-CheckMimeType проверяет, что самый первый файл в архиве имеет имя mimetype и его
-содержимое полностью соответствует строке, переданной в качестве параметра.
-Данная проверка используется, например, для открытия EPUB-файлов.
-
-#### func (*ZipServer) Close
-
-```go
-func (self *ZipServer) Close() error
-```
-Close закрывает открытый файл с архивом и завершает работу.
-
-#### func (*ZipServer) GetData
-
-```go
-func (self *ZipServer) GetData(name string) ([]byte, error)
-```
-GetData возвращает содержимое файла с указанным именем. Если такого файла в
-архиве нет, то возвращается ошибка.
-
-#### func (*ZipServer) GetFile
-
-```go
-func (self *ZipServer) GetFile(name string) (io.ReadCloser, error)
-```
-GetFile возвращает io.ReadCloser интерфейс для чтения содержимого файла из
-архива с указанным именем. Если файл с таким именем в архиве не существует, то
-возвращается ошибка.
-
-#### func (*ZipServer) ModTime
-
-```go
-func (self *ZipServer) ModTime() time.Time
-```
-ModTime возвращает время модификации файла с архивом. Используется при отдаче
-файлов из архива по HTTP в качестве времени модификации, чтобы осуществить
-корректное кеширование.
-
-#### func (*ZipServer) ServeFile
-
-```go
-func (self *ZipServer) ServeFile(w http.ResponseWriter, r *http.Request, name string)
-```
-ServeFile позволяет отдать файл с указанным именем в HTTP-поток. В общем, ради
-этой функции все и писалось. При отдаче заголовок Last-Modified устанавливается
-в значение времени последней модификации файла с архивом. Кроме этого, корректно
-возвращается Content-Type в зависимости от расширения файла.
-
-Функция обрабатывает только GET или HEAD запросы. В противном случае будет
-возвращена ошибка http.StatusMethodNotAllowed с корректно установленными
-HTTP-заголовками.
+Функция обрабатывает только __GET__ или __HEAD__ запросы. В противном случае будет возвращена ошибка `http.StatusMethodNotAllowed` с корректно установленными HTTP-заголовками.
 
 Если файла с указанным именем в архиве не найдено, то будет возвращена ошибка
-http.StatusNotFound.
+`http.StatusNotFound`.
 
-При обработке запроса обрабатывается заголовок If-Modified-Since и, если файл не
-изменился, возвращается http.StatusNotModified.
+При обработке запроса обрабатывается заголовок `If-Modified-Since` и, если файл не изменился, возвращается `http.StatusNotModified`.
+
+Ну и последнее замечание: данный класс умеет проверять, что самый первый файл имеет имя `mimetype` и его содержимое совпадает с указанным в параметре вызова функции `CheckMimeType`. В общем-то, это, в первую очередь, сделано под влиянием формата EPUB, где таким образом определяется, что архив содержит книгу еще до непосредственно распаковки архива. Здесь это является не обязательным: просто бесплатное добавление.
+
+Остальное — "читайте мои мемуары", как говорил один мой преподаватель, подразумевая, что хорошо бы заглянуть в его методичку.
+
