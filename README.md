@@ -1,6 +1,6 @@
-# zipserver
+# httpzip
 
-    import "github.com/mdigger/zipserver"
+    import "github.com/mdigger/httpzip"
 
 Основная идея: возможность быстро подключить zip-файл в качестве отдачи
 статических файлов через стандартный Go HTTP-сервер. Специально для этого
