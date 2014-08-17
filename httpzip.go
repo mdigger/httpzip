@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 )
 
@@ -98,6 +99,11 @@ func (self *HTTPZip) ModTime() time.Time {
 // findFile возвращает ссылку на файл в архиве с указанным именем. Если такого файла не найдено,
 // то возвращается nil.
 func (self *HTTPZip) findFile(name string) *zip.File {
+	name = filepath.ToSlash(name)
+	// Убираем корневой слеш в имени файла, если он там есть
+	if len(name) > 0 && name[0] == filepath.Separator {
+		name = name[1:]
+	}
 	for _, file := range self.zipFile.File {
 		if file.Name == name {
 			return file
