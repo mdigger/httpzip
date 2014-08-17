@@ -18,15 +18,15 @@ import (
 // Ошибка, что файл с таким именем в архиве не найден.
 var ErrNotFound = errors.New("file not found")
 
-// ZipServer описывает открытый zip-архив, с поддержкой раздачи содержимого через HTTP-сервер.
-type ZipServer struct {
+// HTTPZip описывает открытый zip-архив, с поддержкой раздачи содержимого через HTTP-сервер.
+type HTTPZip struct {
 	modtime time.Time
 	zipFile *zip.ReadCloser
 }
 
-// OpenZipServer открывает файл с zip-архивом и возвращает ссылку на ZipServer. Если файл
-// с указанным именем не найден или в процессе открытия произошла ошибка, то она возвращается.
-func OpenZipServer(filename string) (*ZipServer, error) {
+// Open открывает файл с zip-архивом и возвращает ссылку на HTTPZip. Если файл с указанным именем
+// не найден или в процессе открытия произошла ошибка, то она возвращается.
+func Open(filename string) (*HTTPZip, error) {
 	fi, err := os.Stat(filename)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func OpenZipServer(filename string) (*ZipServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ZipServer{
+	return &HTTPZip{
 		modtime: fi.ModTime(),
 		zipFile: r,
 	}, nil
@@ -44,7 +44,7 @@ func OpenZipServer(filename string) (*ZipServer, error) {
 // CheckMimeType проверяет, что самый первый файл в архиве имеет имя mimetype и его содержимое
 // полностью соответствует строке, переданной в качестве параметра. Данная проверка используется,
 // например, для открытия EPUB-файлов.
-func (self *ZipServer) CheckMimeType(mimetype string) bool {
+func (self *HTTPZip) CheckMimeType(mimetype string) bool {
 	if len(self.zipFile.File) == 0 {
 		return false
 	}
@@ -66,7 +66,7 @@ func (self *ZipServer) CheckMimeType(mimetype string) bool {
 
 // GetFile возвращает io.ReadCloser интерфейс для чтения содержимого файла из архива с указанным
 // именем. Если файл с таким именем в архиве не существует, то возвращается ошибка.
-func (self *ZipServer) GetFile(name string) (io.ReadCloser, error) {
+func (self *HTTPZip) GetFile(name string) (io.ReadCloser, error) {
 	if file := self.findFile(name); file != nil {
 		return file.Open()
 	}
@@ -75,7 +75,7 @@ func (self *ZipServer) GetFile(name string) (io.ReadCloser, error) {
 
 // GetData возвращает содержимое файла с указанным именем. Если такого файла в архиве нет, то
 // возвращается ошибка.
-func (self *ZipServer) GetData(name string) ([]byte, error) {
+func (self *HTTPZip) GetData(name string) ([]byte, error) {
 	r, err := self.GetFile(name)
 	if err != nil {
 		return nil, err
@@ -85,19 +85,19 @@ func (self *ZipServer) GetData(name string) ([]byte, error) {
 }
 
 // Close закрывает открытый файл с архивом и завершает работу.
-func (self *ZipServer) Close() error {
+func (self *HTTPZip) Close() error {
 	return self.zipFile.Close()
 }
 
 // ModTime возвращает время модификации файла с архивом. Используется при отдаче файлов из архива
 // по HTTP в качестве времени модификации, чтобы осуществить корректное кеширование.
-func (self *ZipServer) ModTime() time.Time {
+func (self *HTTPZip) ModTime() time.Time {
 	return self.modtime
 }
 
 // findFile возвращает ссылку на файл в архиве с указанным именем. Если такого файла не найдено,
 // то возвращается nil.
-func (self *ZipServer) findFile(name string) *zip.File {
+func (self *HTTPZip) findFile(name string) *zip.File {
 	for _, file := range self.zipFile.File {
 		if file.Name == name {
 			return file
@@ -118,7 +118,7 @@ func (self *ZipServer) findFile(name string) *zip.File {
 //
 // При обработке запроса обрабатывается заголовок If-Modified-Since и, если файл не изменился,
 // возвращается http.StatusNotModified.
-func (self *ZipServer) ServeFile(w http.ResponseWriter, r *http.Request, name string) {
+func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name string) {
 	wh := w.Header() // HTTP-заголовки ответа для быстрого доступа
 	if r.Method != "GET" && r.Method != "HEAD" {
 		wh.Set("Allow", "GET")

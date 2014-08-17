@@ -4,7 +4,7 @@
 
 ```go
 // Открываем файл с архивом
-zipServer, err := httpzip.OpenZipServer("static.zip")
+zipServer, err := httpzip.Open("static.zip")
 if err != nil {
     log.Fatal(err)
 }
