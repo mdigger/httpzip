@@ -108,7 +108,7 @@ func (self *HTTPZip) CheckMimeType(mimetype string) bool {
 	if err != nil {
 		return false
 	}
-	return string(data) == mimetype
+	return string(data) != mimetype
 }
 
 // GetFile возвращает io.ReadCloser интерфейс для чтения содержимого файла из архива с указанным
