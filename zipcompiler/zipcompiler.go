@@ -19,14 +19,15 @@ package main
 import (
 	"archive/zip"
 	"flag"
-	"github.com/dchest/cssmin"
-	"github.com/dchest/htmlmin"
-	"github.com/dchest/jsmin"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/dchest/cssmin"
+	"github.com/dchest/htmlmin"
+	"github.com/dchest/jsmin"
 )
 
 func main() {
@@ -87,9 +88,9 @@ func main() {
 		if err != nil {
 			log.Fatalln("Error reading file:", err)
 		}
-		defer file.Close()
 		stream, err := zipWriter.Create(filepath.ToSlash(arg))
 		if err != nil {
+			file.Close()
 			log.Fatalln("Error creating file in archive:", err)
 		}
 
@@ -98,6 +99,7 @@ func main() {
 			log.Print("*", arg)
 			data, err := ioutil.ReadAll(file)
 			if err != nil {
+				file.Close()
 				log.Fatalln("Error reading css file:", err)
 			}
 			stream.Write(cssmin.Minify(data))
@@ -105,10 +107,12 @@ func main() {
 			log.Print("*", arg)
 			data, err := ioutil.ReadAll(file)
 			if err != nil {
+				file.Close()
 				log.Fatalln("Error reading javascript file:", err)
 			}
 			data, err = jsmin.Minify(data)
 			if err != nil {
+				file.Close()
 				log.Fatalln("Error minifing javascript file:", err)
 			}
 			stream.Write(data)
@@ -116,10 +120,12 @@ func main() {
 			log.Print("*", arg)
 			data, err := ioutil.ReadAll(file)
 			if err != nil {
+				file.Close()
 				log.Fatalln("Error reading html file:", err)
 			}
 			data, err = htmlmin.Minify(data, htmlmin.DefaultOptions)
 			if err != nil {
+				file.Close()
 				log.Fatalln("Error minifing html file:", err)
 			}
 			stream.Write(data)
@@ -127,8 +133,10 @@ func main() {
 			log.Print("+", arg)
 			_, err = io.Copy(stream, file)
 			if err != nil {
+				file.Close()
 				log.Fatalln("Error copying file to archive:", err)
 			}
 		}
+		file.Close()
 	}
 }
