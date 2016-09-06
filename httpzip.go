@@ -183,17 +183,28 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 	if file == nil {
 		http.NotFound(w, r)
 	}
-	// Проверяем время модификации файла
-	if t, err := time.Parse(http.TimeFormat, r.Header.Get("If-Modified-Since")); err == nil {
-		if self.modtime.Before(t.Add(time.Second)) {
-			wh.Del("Content-Type")
-			wh.Del("Content-Length")
+
+	// Всегда устанавливаем заголовок со временем модификации
+	wh.Set("Last-Modified", self.modtime.UTC().Format(http.TimeFormat))
+	// конвертируем CRC32 в строковое представление - это будет ETag
+	etag := strconv.FormatUint(uint64(file.CRC32), 36)
+	wh.Set("Etag", etag)
+
+	// проверяем ETag
+	if inm := r.Header.Get("If-None-Match"); inm != "" {
+		if inm == etag || inm == "*" {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
 	}
-	// Всегда устанавливаем заголовок со временем модификации
-	wh.Set("Last-Modified", self.modtime.UTC().Format(http.TimeFormat))
+	// Проверяем время модификации файла
+	if t, err := time.Parse(http.TimeFormat,
+		r.Header.Get("If-Modified-Since")); err == nil {
+		if self.modtime.Before(t.Add(time.Second)) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
 
 	// Вычисляет Content-Type по расширению файла
 	mimetype := mime.TypeByExtension(path.Ext(name))
@@ -202,25 +213,21 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 	}
 	wh.Set("Content-Type", mimetype)
 
-	// конвертируем CRC32 в строковое представление
-	etag := strconv.FormatUint(uint64(file.CRC32), 36)
-	// проверяем ETag, если он установлен
-	if ir := r.Header.Get("If-Range"); ir == etag {
-		wh.Del("Content-Type")
-		wh.Del("Content-Length")
-		w.WriteHeader(http.StatusNotModified)
-		return
-	}
-	wh.Set("Etag", etag)
-
-	// rangeReq := r.Header.Get("Range")
-	// TODO: Сделать нормальную проверку
 	// TODO: Добавить поддержку диапазонов
 
-	if r.Method == "HEAD" {
+	if r.Method == "HEAD" || file.UncompressedSize == 0 {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+
+	rangeReq := r.Header.Get("Range")
+	if ir := r.Header.Get("If-Range"); ir != "" && ir != etag {
+		if t, err := http.ParseTime(ir); err != nil ||
+			t.Unix() != self.modtime.Unix() {
+			rangeReq = ""
+		}
+	}
+
 	fr, err := file.Open()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
