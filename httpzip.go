@@ -186,8 +186,8 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 	// Проверяем время модификации файла
 	if t, err := time.Parse(http.TimeFormat, r.Header.Get("If-Modified-Since")); err == nil {
 		if self.modtime.Before(t.Add(time.Second)) {
-			delete(wh, "Content-Type")
-			delete(wh, "Content-Length")
+			wh.Del("Content-Type")
+			wh.Del("Content-Length")
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
@@ -205,9 +205,9 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 	// конвертируем CRC32 в строковое представление
 	etag := strconv.FormatUint(uint64(file.CRC32), 36)
 	// проверяем ETag, если он установлен
-	if r.Header.Get("Etag") == etag {
-		delete(wh, "Content-Type")
-		delete(wh, "Content-Length")
+	if ir := r.Header.Get("If-Range"); ir == etag {
+		wh.Del("Content-Type")
+		wh.Del("Content-Length")
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
