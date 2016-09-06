@@ -59,6 +59,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -184,7 +185,7 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 	}
 	// Проверяем время модификации файла
 	if t, err := time.Parse(http.TimeFormat, r.Header.Get("If-Modified-Since")); err == nil {
-		if self.modtime.Before(t.Add(1 * time.Second)) {
+		if self.modtime.Before(t.Add(time.Second)) {
 			delete(wh, "Content-Type")
 			delete(wh, "Content-Length")
 			w.WriteHeader(http.StatusNotModified)
@@ -192,13 +193,7 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 		}
 	}
 	// Всегда устанавливаем заголовок со временем модификации
-	// TODO: устанавливать время из файла (???)
 	wh.Set("Last-Modified", self.modtime.UTC().Format(http.TimeFormat))
-	// checkETag
-	// etag := r.Header.Get("Etag")
-	// rangeReq := r.Header.Get("Range")
-	// TODO: Сделать нормальную проверку
-	// TODO: Добавить поддержку диапазонов
 
 	// Вычисляет Content-Type по расширению файла
 	mimetype := mime.TypeByExtension(path.Ext(name))
@@ -206,6 +201,21 @@ func (self *HTTPZip) ServeFile(w http.ResponseWriter, r *http.Request, name stri
 		mimetype = "application/octet-stream"
 	}
 	wh.Set("Content-Type", mimetype)
+
+	// конвертируем CRC32 в строковое представление
+	etag := strconv.FormatUint(uint64(file.CRC32), 36)
+	// проверяем ETag, если он установлен
+	if r.Header.Get("Etag") == etag {
+		delete(wh, "Content-Type")
+		delete(wh, "Content-Length")
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	wh.Set("Etag", etag)
+
+	// rangeReq := r.Header.Get("Range")
+	// TODO: Сделать нормальную проверку
+	// TODO: Добавить поддержку диапазонов
 
 	if r.Method == "HEAD" {
 		w.WriteHeader(http.StatusOK)
