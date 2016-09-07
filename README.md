@@ -5,48 +5,29 @@
 [![Coverage Status](https://coveralls.io/repos/github/mdigger/httpzip/badge.svg)](https://coveralls.io/github/mdigger/httpzip?branch=master)
 
 
-Основная идея: возможность быстро подключить zip-файл в качестве каталога со статическими файлами и отдавать их через стандартный Go HTTP-сервер. Специально для этого и реализована поддержка функции, аналогичной `http.ServeFile`.
+Package httzip allows you to connect a zip archive to the web server as
+static files handler.
 
 ```go
-// Открываем файл с архивом
-zipServer, err := httpzip.Open("static.zip")
-if err != nil {
-    log.Fatal(err)
-}
-defer zipServer.Close() // Атоматически закрываем по окончании
+package main
 
-// Инициализируем обработчик HTTP-запросов
-http.Handle("/static/", http.StripPrefix("/static/", zipServer))
-```
+import (
+	"log"
+	"net/http"
 
-`ServeFile` позволяет отдать файл с указанным именем в HTTP-поток: в общем, ради этой функции все и писалось. 
+	"github.com/mdigger/httpzip"
+)
 
-Функция обрабатывает только __GET__ или __HEAD__ запросы. В противном случае будет возвращена ошибка `http.StatusMethodNotAllowed` с корректно установленными HTTP-заголовками. Если файла с указанным именем в архиве не найдено, то будет возвращена ошибка
-`http.StatusNotFound`.
+func main() {
+	// open zip-file
+	zipServer, err := httpzip.Open("static.zip")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer zipServer.Close()
 
-Ну и последнее замечание: данный класс умеет проверять, что самый первый файл имеет имя `mimetype` (упакован без сжатия) и получить его содержимое через `GetMimeType`. В общем-то, это, в первую очередь, сделано под влиянием формата EPUB, где таким образом определяется, что архив содержит книгу еще до непосредственно распаковки архива. Здесь это является не обязательным: просто бесплатное добавление.
-
-Из мелочей: вы можете легко загрузить содержимое любого файла или открыть его как поток на чтение. Но это уже так — приятности, не более.
-
-```go
-// Читаем из него, например, шаблон и разбираем его, если это нужно
-data, err := zipServer.GetData("templates/default.tmpl")
-if err != nil {
-    log.Fatal(err)
-}
-tmpl, err = template.New("").Parse(string(data))
-if err != nil {
-    log.Fatal(err)
+	// initialize http handler
+	http.Handle("/static/", http.StripPrefix("/static/", zipServer))
 }
 ```
-
-Остальное — "читайте мои мемуары", как говорил один мой преподаватель, подразумевая, что хорошо бы заглянуть в его методичку.
-
-
-## zipcompiler
-
-Для облегчения жизни себе и окружающим, в подкаталоге __zipcompiler__ лежат исходники упаковщика в формат zip. Обычно он на фиг не нужен, но этот поддерживает несколько, лично для меня, полезных функций:
-
-1. Позволяет автоматически добавить первым и без сжатия файл с именем `mimetype`, в качестве содержимого которого можно указать любую строку (см. описание `CheckMimeType` выше).
-2. Поддерживает автоматическую минимизацию файлов в формате CSS, JavaScript и HTML при их упаковке.
 
