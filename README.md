@@ -1,5 +1,10 @@
 # httpzip
 
+[![GoDoc](https://godoc.org/github.com/mdigger/httpzip?status.svg)](https://godoc.org/github.com/mdigger/httpzip)
+[![Build Status](https://travis-ci.org/mdigger/httpzip.svg?branch=master)](https://travis-ci.org/mdigger/httpzip)
+[![Coverage Status](https://coveralls.io/repos/github/mdigger/httpzip/badge.svg)](https://coveralls.io/github/mdigger/httpzip?branch=master)
+
+
 Основная идея: возможность быстро подключить zip-файл в качестве каталога со статическими файлами и отдавать их через стандартный Go HTTP-сервер. Специально для этого и реализована поддержка функции, аналогичной `http.ServeFile`.
 
 ```go
