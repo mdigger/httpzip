@@ -106,21 +106,16 @@ func (h *HTTPZip) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPZip) GetMimeType() string {
-	if len(h.zip.File) == 0 {
-		return ""
+	if len(h.zip.File) != 0 {
+		if firstFile := h.zip.File[0]; firstFile.Name == "mimetype" {
+			if file, err := firstFile.Open(); err == nil {
+				data, err := ioutil.ReadAll(file)
+				file.Close()
+				if err == nil {
+					return string(data)
+				}
+			}
+		}
 	}
-	firstFile := h.zip.File[0]
-	if firstFile.Name != "mimetype" {
-		return ""
-	}
-	file, err := firstFile.Open()
-	if err != nil {
-		return ""
-	}
-	defer file.Close()
-	data, err := ioutil.ReadAll(file)
-	if err != nil {
-		return ""
-	}
-	return string(data)
+	return ""
 }

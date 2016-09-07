@@ -19,21 +19,21 @@ var (
 	mimetype = "test"
 )
 
-func createzip() ([]byte, error) {
+func createzip(withMimeType bool) ([]byte, error) {
 	var zipbuf = new(bytes.Buffer)
 	var w = zip.NewWriter(zipbuf)
-
-	stream, err := w.CreateHeader(&zip.FileHeader{
-		Name:   "mimetype",
-		Method: zip.Store,
-	})
-	if err != nil {
-		return nil, err
+	if withMimeType {
+		stream, err := w.CreateHeader(&zip.FileHeader{
+			Name:   "mimetype",
+			Method: zip.Store,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if _, err = io.WriteString(stream, mimetype); err != nil {
+			return nil, err
+		}
 	}
-	if _, err = io.WriteString(stream, mimetype); err != nil {
-		return nil, err
-	}
-
 	for name, data := range files {
 		f, err := w.Create(name)
 		if err != nil {
@@ -44,7 +44,7 @@ func createzip() ([]byte, error) {
 			return nil, err
 		}
 	}
-	if err = w.Close(); err != nil {
+	if err := w.Close(); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +52,7 @@ func createzip() ([]byte, error) {
 }
 
 func TestZipFile(t *testing.T) {
-	data, err := createzip()
+	data, err := createzip(false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func TestHTTPZip(t *testing.T) {
-	data, err := createzip()
+	data, err := createzip(true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestHTTPZip(t *testing.T) {
 }
 
 func TestOpenHTTPZip(t *testing.T) {
-	data, err := createzip()
+	data, err := createzip(false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +105,9 @@ func TestOpenHTTPZip(t *testing.T) {
 	zip, err := Open(tmp.Name())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if zip.GetMimeType() != "" {
+		t.Error("bad mimetype reading")
 	}
 	if err := zip.Close(); err != nil {
 		t.Error(err)
